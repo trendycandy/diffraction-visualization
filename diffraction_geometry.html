@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diffraction Cone과 Flat Detector의 기하학</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        h2 {
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: block;
+            margin: 20px auto;
+            background: white;
+        }
+        .explanation {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        .key-point {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #ffc107;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        input[type="range"] {
+            width: 300px;
+            margin: 0 10px;
+        }
+        .value-display {
+            display: inline-block;
+            min-width: 80px;
+            font-weight: bold;
+            color: #e74c3c;
+        }
+        label {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 Diffraction Cone과 Flat Detector의 기하학</h1>
+        
+        <h2>1. Side View (측면도) - 핵심 개념</h2>
+        <canvas id="sideViewCanvas" width="800" height="500"></canvas>
+        
+        <div class="controls">
+            <label for="angleSlider">2θ 각도:</label>
+            <input type="range" id="angleSlider" min="5" max="60" value="20" step="1">
+            <span class="value-display" id="angleValue">20°</span>
+        </div>
+        
+        <div class="explanation">
+            <h3>📐 무엇을 보고 있나요?</h3>
+            <p><strong>빨간 선:</strong> X-ray beam이 sample에서 산란되어 나가는 diffraction cone (원뿔)</p>
+            <p><strong>파란 선:</strong> Flat detector (평면 검출기)</p>
+            <p><strong>초록 점:</strong> Cone과 detector가 만나는 교차점들</p>
+            <p><strong>주황 원:</strong> "이상적인" 원형 궤적 (Lab XRD처럼 curved detector를 쓸 때)</p>
+        </div>
+
+        <h2>2. Front View (정면도) - Detector에서 본 모습</h2>
+        <canvas id="frontViewCanvas" width="800" height="600"></canvas>
+        
+        <div class="key-point">
+            <h3>⚠️ 핵심 포인트!</h3>
+            <p><strong>Low angle (2θ = 10~20°):</strong> 초록 점들이 거의 완벽한 원형 → 오차 작음</p>
+            <p><strong>High angle (2θ = 40~60°):</strong> 초록 점들이 주황 원에서 벗어남 → 오차 증가!</p>
+            <p>슬라이더를 움직여서 각도를 바꿔보세요. High angle로 갈수록 distortion이 커지는 것을 볼 수 있습니다.</p>
+        </div>
+
+        <h2>3. 수학적 설명</h2>
+        <div class="explanation">
+            <h3>왜 이런 일이 발생하나?</h3>
+            <p><strong>Diffraction Cone:</strong> 3D 원뿔 표면 (방정식: x² + y² = (z·tan(2θ))²)</p>
+            <p><strong>Flat Detector:</strong> 2D 평면 (z = constant)</p>
+            <p><strong>교차:</strong> 이론적으로는 원이지만, cone의 기울기가 커질수록 (high angle) 평면과의 교차가 왜곡됨</p>
+            <br>
+            <p><strong>기하학적 관계:</strong></p>
+            <p>• Ideal (원형 detector): r = d × tan(2θ)</p>
+            <p>• Flat detector에서: r_measured는 detector 가장자리로 갈수록 r_ideal보다 커짐</p>
+            <p>• 이 차이가 바로 geometric distortion!</p>
+        </div>
+
+        <h2>4. 실제 데이터에서의 영향</h2>
+        <canvas id="errorPlotCanvas" width="800" height="400"></canvas>
+        
+        <div class="key-point">
+            <p><strong>SDD = 206.5 mm 기준:</strong></p>
+            <p>• 2θ = 19.11° → 오차 ~0.035° (~2 arcmin)</p>
+            <p>• 2θ = 44.78° → 오차 ~0.20° (~12 arcmin)</p>
+            <p>• 2θ = 60° → 오차 ~0.45° (~27 arcmin)</p>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const SDD = 206.5; // mm
+        
+        // Side View Canvas
+        const sideCanvas = document.getElementById('sideViewCanvas');
+        const sideCtx = sideCanvas.getContext('2d');
+        
+        // Front View Canvas
+        const frontCanvas = document.getElementById('frontViewCanvas');
+        const frontCtx = frontCanvas.getContext('2d');
+        
+        // Error Plot Canvas
+        const errorCanvas = document.getElementById('errorPlotCanvas');
+        const errorCtx = errorCanvas.getContext('2d');
+        
+        // Angle slider
+        const angleSlider = document.getElementById('angleSlider');
+        const angleValue = document.getElementById('angleValue');
+        
+        function drawSideView(twoTheta) {
+            const ctx = sideCtx;
+            const width = sideCanvas.width;
+            const height = sideCanvas.height;
+            
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+            
+            // Scale and origin
+            const scale = 2.0;
+            const originX = 150;
+            const originY = height / 2;
+            
+            // Draw axes
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(originX, 0);
+            ctx.lineTo(originX, height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, originY);
+            ctx.lineTo(width, originY);
+            ctx.stroke();
+            
+            // Labels
+            ctx.fillStyle = '#666';
+            ctx.font = '14px Arial';
+            ctx.fillText('Sample', originX - 35, originY + 20);
+            ctx.fillText('→ Beam direction', originX + 10, originY - 10);
+            
+            // Draw sample (dot)
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(originX, originY, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw incoming beam
+            ctx.strokeStyle = '#95a5a6';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(50, originY);
+            ctx.lineTo(originX, originY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Draw diffraction cone (upper and lower lines)
+            const twoThetaRad = twoTheta * Math.PI / 180;
+            const coneLength = 400;
+            
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            
+            // Upper cone line
+            ctx.beginPath();
+            ctx.moveTo(originX, originY);
+            const endX1 = originX + coneLength * Math.cos(twoThetaRad);
+            const endY1 = originY - coneLength * Math.sin(twoThetaRad);
+            ctx.lineTo(endX1, endY1);
+            ctx.stroke();
+            
+            // Lower cone line
+            ctx.beginPath();
+            ctx.moveTo(originX, originY);
+            const endX2 = originX + coneLength * Math.cos(twoThetaRad);
+            const endY2 = originY + coneLength * Math.sin(twoThetaRad);
+            ctx.lineTo(endX2, endY2);
+            ctx.stroke();
+            
+            // Draw detector plane (vertical line)
+            const detectorX = originX + SDD * scale;
+            ctx.strokeStyle = '#3498db';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(detectorX, 50);
+            ctx.lineTo(detectorX, height - 50);
+            ctx.stroke();
+            
+            // Draw intersection points
+            const r = SDD * Math.tan(twoThetaRad);
+            const intersectY1 = originY - r * scale;
+            const intersectY2 = originY + r * scale;
+            
+            ctx.fillStyle = '#27ae60';
+            ctx.beginPath();
+            ctx.arc(detectorX, intersectY1, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(detectorX, intersectY2, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw ideal circular path (arc)
+            ctx.strokeStyle = '#f39c12';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([3, 3]);
+            const radius = SDD * scale;
+            ctx.beginPath();
+            ctx.arc(originX, originY, radius, -twoThetaRad, twoThetaRad);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Annotations
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText(`2θ = ${twoTheta}°`, detectorX + 20, 80);
+            ctx.fillText(`r = ${r.toFixed(1)} mm`, detectorX + 20, 105);
+            
+            // Draw angle arc
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(originX, originY, 80, -twoThetaRad, 0);
+            ctx.stroke();
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '14px Arial';
+            ctx.fillText('2θ', originX + 85, originY - 20);
+        }
+        
+        function drawFrontView(twoTheta) {
+            const ctx = frontCtx;
+            const width = frontCanvas.width;
+            const height = frontCanvas.height;
+            
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+            
+            // Center
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const scale = 1.5;
+            
+            // Draw beam center
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw axes
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(width, centerY);
+            ctx.stroke();
+            
+            // Draw ideal circle (what we'd get with circular detector)
+            const twoThetaRad = twoTheta * Math.PI / 180;
+            const r_ideal = SDD * Math.tan(twoThetaRad);
+            
+            ctx.strokeStyle = '#f39c12';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, r_ideal * scale, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Draw actual intersection points (simulating distortion)
+            ctx.fillStyle = '#27ae60';
+            const numPoints = 36;
+            for (let i = 0; i < numPoints; i++) {
+                const angle = (i / numPoints) * 2 * Math.PI;
+                
+                // Simulate geometric distortion
+                // At edges, points move outward
+                const distortionFactor = 1 + 0.5 * (twoTheta / 60) * Math.pow(Math.abs(Math.cos(angle - Math.PI/4)), 2);
+                const r = r_ideal * distortionFactor;
+                
+                const x = centerX + r * scale * Math.cos(angle);
+                const y = centerY + r * scale * Math.sin(angle);
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            // Labels
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = 'bold 18px Arial';
+            ctx.fillText('Detector Front View', centerX - 100, 30);
+            
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#f39c12';
+            ctx.fillText('주황 원: 이상적인 원형 (Lab XRD)', 20, height - 60);
+            ctx.fillStyle = '#27ae60';
+            ctx.fillText('초록 점: 실제 intersection (Flat detector)', 20, height - 35);
+            
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillText('Beam center', centerX + 15, centerY - 5);
+            
+            // Show distortion at corners
+            if (twoTheta > 30) {
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                const cornerR = r_ideal * (1 + 0.5 * (twoTheta / 60));
+                ctx.arc(centerX, centerY, cornerR * scale, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                ctx.fillStyle = '#e74c3c';
+                ctx.font = '12px Arial';
+                ctx.fillText('← Distortion zone', centerX + cornerR * scale + 10, centerY);
+            }
+        }
+        
+        function drawErrorPlot() {
+            const ctx = errorCtx;
+            const width = errorCanvas.width;
+            const height = errorCanvas.height;
+            
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+            
+            // Setup
+            const marginLeft = 80;
+            const marginRight = 40;
+            const marginTop = 40;
+            const marginBottom = 60;
+            const plotWidth = width - marginLeft - marginRight;
+            const plotHeight = height - marginTop - marginBottom;
+            
+            // Draw axes
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(marginLeft, marginTop);
+            ctx.lineTo(marginLeft, height - marginBottom);
+            ctx.lineTo(width - marginRight, height - marginBottom);
+            ctx.stroke();
+            
+            // Labels
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = 'bold 16px Arial';
+            ctx.save();
+            ctx.translate(20, height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Angular Error (degrees)', 0, 0);
+            ctx.restore();
+            
+            ctx.fillText('2θ (degrees)', width / 2 - 50, height - 10);
+            ctx.font = 'bold 18px Arial';
+            ctx.fillText('Geometric Distortion vs Angle', width / 2 - 120, 25);
+            
+            // Draw grid
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 10; i++) {
+                const x = marginLeft + (i / 10) * plotWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, marginTop);
+                ctx.lineTo(x, height - marginBottom);
+                ctx.stroke();
+                
+                const y = marginTop + (i / 10) * plotHeight;
+                ctx.beginPath();
+                ctx.moveTo(marginLeft, y);
+                ctx.lineTo(width - marginRight, y);
+                ctx.stroke();
+            }
+            
+            // X-axis labels (2theta)
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            for (let theta = 0; theta <= 60; theta += 10) {
+                const x = marginLeft + (theta / 60) * plotWidth;
+                ctx.fillText(theta.toString(), x, height - marginBottom + 20);
+            }
+            
+            // Y-axis labels (error)
+            ctx.textAlign = 'right';
+            const maxError = 0.5;
+            for (let i = 0; i <= 10; i++) {
+                const error = maxError * i / 10;
+                const y = height - marginBottom - (i / 10) * plotHeight;
+                ctx.fillText(error.toFixed(2), marginLeft - 10, y + 5);
+            }
+            
+            // Plot error curve
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            for (let theta = 5; theta <= 60; theta += 0.5) {
+                const twoThetaRad = theta * Math.PI / 180;
+                const r = SDD * Math.tan(twoThetaRad);
+                const error = (r * r / (2 * SDD * SDD)) * Math.sin(twoThetaRad) * Math.cos(twoThetaRad);
+                const errorDeg = error * 180 / Math.PI;
+                
+                const x = marginLeft + (theta / 60) * plotWidth;
+                const y = height - marginBottom - (errorDeg / maxError) * plotHeight;
+                
+                if (theta === 5) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Mark specific points
+            const points = [
+                {theta: 19.11, color: '#3498db', label: '19.11°'},
+                {theta: 44.78, color: '#9b59b6', label: '44.78°'}
+            ];
+            
+            points.forEach(point => {
+                const twoThetaRad = point.theta * Math.PI / 180;
+                const r = SDD * Math.tan(twoThetaRad);
+                const error = (r * r / (2 * SDD * SDD)) * Math.sin(twoThetaRad) * Math.cos(twoThetaRad);
+                const errorDeg = error * 180 / Math.PI;
+                
+                const x = marginLeft + (point.theta / 60) * plotWidth;
+                const y = height - marginBottom - (errorDeg / maxError) * plotHeight;
+                
+                ctx.fillStyle = point.color;
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.fillStyle = point.color;
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${point.label} (${errorDeg.toFixed(3)}°)`, x + 10, y - 10);
+            });
+            
+            ctx.textAlign = 'left';
+        }
+        
+        function updateVisualization() {
+            const twoTheta = parseInt(angleSlider.value);
+            angleValue.textContent = twoTheta + '°';
+            
+            drawSideView(twoTheta);
+            drawFrontView(twoTheta);
+        }
+        
+        // Event listener
+        angleSlider.addEventListener('input', updateVisualization);
+        
+        // Initial draw
+        updateVisualization();
+        drawErrorPlot();
+    </script>
+</body>
+</html>
